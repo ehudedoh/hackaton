@@ -1,5 +1,8 @@
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+
+from fastapi.concurrency import run_in_threadpool
 
 from services.ai_service import analyze_text, has_api_key
 
@@ -18,11 +21,16 @@ async def analyze(payload: AnalyzeRequest):
             detail="La clé API n’est pas encore dans backend/.env.",
         )
     try:
-        return await analyze_text(payload.text)
+        return await run_in_threadpool(analyze_text, payload.text)
     except ValueError:
         raise HTTPException(
             status_code=502,
             detail="L’explication n’a pas pu être lue. Réessayez.",
+        )
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=504,
+            detail="Gemma 4 met trop de temps à répondre. Réessayez.",
         )
     except RuntimeError as error:
         raise HTTPException(status_code=502, detail=str(error))
