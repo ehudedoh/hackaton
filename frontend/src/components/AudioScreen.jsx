@@ -14,8 +14,8 @@ export default function AudioScreen({
     <section className="screen">
       <h1>Traduction en éwé</h1>
       <p className="lead">
-        Lisez la traduction, puis écoutez-la. La voix utilise le modèle
-        éwé déjà préparé sur cet ordinateur.
+        Lisez la traduction, puis écoutez-la. La voix utilise
+        facebook/mms-tts-ewe sur le serveur.
       </p>
 
       <article className="card">
@@ -31,8 +31,8 @@ export default function AudioScreen({
 
       {loading ? (
         <p className="card">
-          Préparation de la voix… Le premier chargement peut durer une à
-          deux minutes.
+          Chargement de la voix éwé… Le modèle se prépare en arrière-plan
+          (une à deux minutes). Gardez l’écran allumé.
         </p>
       ) : null}
       {error ? (

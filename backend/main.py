@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,7 +11,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 from routes.analysis import router as analysis_router
 from routes.tts import router as tts_router
 from services.ai_service import MODEL_NAME, has_api_key
-from services.tts_service import is_ready
+from services.tts_service import is_loading, is_ready, start_background_load
 
 DEFAULT_ORIGINS = [
     "http://localhost:5173",
@@ -24,7 +25,21 @@ EXTRA_ORIGINS = [
 ]
 
 
-app = FastAPI(title="JuriLex")
+def _should_preload_tts():
+    explicit = os.getenv("PRELOAD_TTS")
+    if explicit is not None:
+        return explicit.strip().lower() in {"1", "true", "yes"}
+    return os.getenv("RENDER", "").strip().lower() in {"true", "1"}
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if _should_preload_tts():
+        start_background_load()
+    yield
+
+
+app = FastAPI(title="JuriLex", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=DEFAULT_ORIGINS + EXTRA_ORIGINS,
@@ -43,5 +58,6 @@ def health():
         "analysis": has_api_key(),
         "model": MODEL_NAME,
         "tts": is_ready(),
+        "tts_loading": is_loading(),
         "tts_model": "facebook/mms-tts-ewe",
     }

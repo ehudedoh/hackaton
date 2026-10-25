@@ -84,7 +84,7 @@ Le frontend statique n’a **pas** le proxy Vite. Sans `VITE_API_URL`, « Compre
 - Variable **de build** : `VITE_API_URL=https://hackaton-bcd.onrender.com`  
   Puis **Clear build cache & deploy** (Vite lit cette variable au build).
 
-La voix TTS (PyTorch) dépasse souvent la RAM d’un instance Render gratuite. L’analyse Gemma 4 peut aussi dépasser le délai ~30 s du plan gratuit.
+La voix TTS (PyTorch) dépasse souvent la RAM d’une instance Render gratuite. Ne pas garder le POST `/api/tts` ouvert pendant le chargement du modèle (Render coupe ~30 s, le téléphone affiche « Failed to fetch »). Le modèle se charge en arrière-plan (`POST /api/tts/warmup`) ; le POST voix n’est envoyé que lorsque `/api/health` a `"tts": true`. Sur Render, `PRELOAD_TTS` est activé par défaut.
 
 ## Lancement
 
@@ -103,7 +103,7 @@ curl http://127.0.0.1:8000/api/health
 ```
 
 Attendu : `"ok": true`, `"analysis": true`, `"model": "gemma-4-26b-a4b-it"`.  
-`"tts": true` seulement après la première génération de voix (le modèle se charge à la première requête).
+`"tts": true` quand le modèle voix est chargé (`"tts_loading": true` pendant le chargement).
 
 **Frontend** :
 

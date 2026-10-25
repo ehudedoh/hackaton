@@ -1,5 +1,6 @@
 import os
 import tempfile
+import threading
 from pathlib import Path
 
 MODEL_NAME = "facebook/mms-tts-ewe"
@@ -7,10 +8,16 @@ MAX_CHUNK = 220
 
 _tokenizer = None
 _model = None
+_lock = threading.Lock()
+_loading = False
 
 
 def is_ready():
     return _model is not None and _tokenizer is not None
+
+
+def is_loading():
+    return _loading
 
 
 def load_tts():
@@ -25,6 +32,27 @@ def load_tts():
     _model = VitsModel.from_pretrained(MODEL_NAME)
     _model.eval()
     print("jurilex: TTS prêt", flush=True)
+
+
+def start_background_load():
+    global _loading
+    if is_ready():
+        return
+    with _lock:
+        if is_ready() or _loading:
+            return
+        _loading = True
+
+    def run():
+        global _loading
+        try:
+            load_tts()
+        except Exception as error:
+            print("jurilex: TTS échec", error, flush=True)
+        finally:
+            _loading = False
+
+    threading.Thread(target=run, daemon=True, name="jurilex-tts").start()
 
 
 def _chunks(text):
@@ -61,7 +89,9 @@ def _synthesize_chunk(text):
 
 
 def generate_speech(text):
-    load_tts()
+    if not is_ready():
+        start_background_load()
+        raise RuntimeError("loading")
     return synthesize_wav(text)
 
 

@@ -1,5 +1,18 @@
 const API_BASE = `${(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}/api`;
 
+function networkError(error) {
+  const message = error?.message || '';
+  if (
+    error?.name === 'TypeError' ||
+    /Failed to fetch|NetworkError|Load failed|network/i.test(message)
+  ) {
+    return new Error(
+      'La connexion a été coupée. Sur Render, un POST voix de 2 minutes est arrêté. Attendez que le modèle soit chargé, puis réessayez.',
+    );
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 async function readJson(response) {
   const raw = await response.text();
   if (!raw) {
@@ -26,34 +39,83 @@ async function readError(response) {
 }
 
 export async function checkHealth() {
-  const response = await fetch(`${API_BASE}/health`);
-  if (!response.ok) {
-    throw new Error('Le serveur ne répond pas pour le moment.');
+  try {
+    const response = await fetch(`${API_BASE}/health`);
+    if (!response.ok) {
+      throw new Error('Le serveur ne répond pas pour le moment.');
+    }
+    return readJson(response);
+  } catch (error) {
+    throw networkError(error);
   }
-  return readJson(response);
 }
 
 export async function analyzeDocument(text) {
-  const response = await fetch(`${API_BASE}/analyze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  });
-  if (!response.ok) {
-    throw new Error(await readError(response));
+  try {
+    const response = await fetch(`${API_BASE}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      throw new Error(await readError(response));
+    }
+    return readJson(response);
+  } catch (error) {
+    throw networkError(error);
   }
-  return readJson(response);
+}
+
+async function waitForVoice() {
+  try {
+    await fetch(`${API_BASE}/tts/warmup`, { method: 'POST' });
+  } catch {
+    // Le chargement continue côté serveur même si cet appel échoue.
+  }
+  const started = Date.now();
+  while (Date.now() - started < 180000) {
+    try {
+      const health = await checkHealth();
+      if (health.tts) {
+        return;
+      }
+    } catch {
+      // Instance Render en train de redémarrer ou saturée.
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 2500));
+  }
+  throw new Error(
+    'La voix n’est pas prête. Le modèle éwé dépasse souvent la RAM ou le délai de Render. Réessayez, ou lancez le backend en local.',
+  );
 }
 
 export async function requestSpeech(text) {
-  const response = await fetch(`${API_BASE}/tts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  });
-  if (!response.ok) {
-    throw new Error(await readError(response));
+  await waitForVoice();
+  try {
+    const response = await fetch(`${API_BASE}/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (response.status === 503) {
+      await waitForVoice();
+      const retry = await fetch(`${API_BASE}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!retry.ok) {
+        throw new Error(await readError(retry));
+      }
+      const retryBlob = await retry.blob();
+      return URL.createObjectURL(retryBlob);
+    }
+    if (!response.ok) {
+      throw new Error(await readError(response));
+    }
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    throw networkError(error);
   }
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
 }
