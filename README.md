@@ -13,7 +13,7 @@ JuriLex n’est pas un avocat et ne remplace pas un professionnel du droit.
 | 2 | Import PDF / photo + OCR | Fait |
 | 3 | Analyse Gemma 4 + traduction éwé | Fait |
 | 4 | Synthèse vocale éwé | Fait |
-| 5 | Parcours de démonstration complet | À faire |
+| 5 | Parcours de démonstration complet | Fait |
 | 6 | Préparation démo finale | À faire |
 
 ## Ce que l’application fait aujourd’hui
@@ -64,8 +64,27 @@ GEMINI_API_KEY=votre_clé
 GEMMA_MODEL=gemma-4-26b-a4b-it
 ```
 
-- Clé **uniquement** dans `backend/.env`, jamais dans `frontend/.env`.
+- Clé **uniquement** dans `backend/.env`, jamais dans le frontend.
 - Ne commitez jamais `.env`.
+
+### Render (deux services)
+
+Le frontend statique n’a **pas** le proxy Vite. Sans `VITE_API_URL`, « Comprendre ce document » appelle `/api` sur le site frontend et reçoit une réponse vide (`Unexpected end of JSON input`).
+
+**Backend** (Web Service, racine `backend`) :
+
+- Build : `pip install -r requirements.txt`
+- Start : `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Variables : `GEMINI_API_KEY`, `GEMMA_MODEL=gemma-4-26b-a4b-it`, `CORS_ORIGINS=https://hackaton-ulix.onrender.com`
+
+**Frontend** (Static Site, racine `frontend`) :
+
+- Build : `npm install && npm run build`
+- Publish : `dist`
+- Variable **de build** : `VITE_API_URL=https://hackaton-bcd.onrender.com`  
+  Puis **Clear build cache & deploy** (Vite lit cette variable au build).
+
+La voix TTS (PyTorch) dépasse souvent la RAM d’un instance Render gratuite. L’analyse Gemma 4 peut aussi dépasser le délai ~30 s du plan gratuit.
 
 ## Lancement
 
@@ -95,14 +114,17 @@ npm run dev
 
 Ouvrir **http://localhost:5173/**.
 
-## Parcours de test (jusqu’à l’étape 4)
+## Parcours de test (étape 5 — vérifié)
 
-1. Ajouter un document (PDF ou photo).
-2. Vérifier / corriger le texte.
-3. **Comprendre ce document** (8 à 15 s).
-4. Lire les six sections.
-5. **Écouter en éwé** : le premier chargement de la voix peut prendre **une à deux minutes**, les suivants quelques secondes.
-6. Pause / reprise, puis **Effacer et recommencer**.
+Fichier d’exemple : `frontend/public/samples/contrat-texte.pdf`.
+
+1. **Ajouter mon document** (PDF texte) → extraction PDF.js, écran « Vérifier le texte ».
+2. Relire / corriger, puis **Comprendre ce document** (Gemma 4, ici ~2 s une fois le backend chaud).
+3. Six sections remplies (résumé, obligations, argent, dates, points à vérifier).
+4. **Écouter en éwé** : traduction affichée ; WAV préparé (ici ~35 s avec le modèle déjà chargé, plus long au tout premier chargement).
+5. **Écouter** / pause / fin naturelle (~15 s pour l’exemple).
+6. **Effacer et recommencer** → retour à l’accueil, session vide.
+7. Chemin **image PNG** (texte dessiné) : Tesseract.js a reconnu le contrat ; pas de photo caméra ni PDF scanné réel dans ce test.
 
 Ne lancez pas l’analyse Gemma 4 et le premier chargement TTS en même temps : la machine a peu de RAM.
 
@@ -136,6 +158,7 @@ curl -o voix.wav -X POST http://127.0.0.1:8000/api/tts \
 - Peu de RAM : séparer analyse et premier chargement de la voix.
 - La PWA n’offre pas l’analyse ni la voix hors ligne.
 - MMS TTS n’est pas adapté à un usage commercial sans autre licence.
+- Déploiement Render : `VITE_API_URL` obligatoire au build du frontend ; TTS peu réaliste sur l’offre gratuite.
 
 ## Structure
 
