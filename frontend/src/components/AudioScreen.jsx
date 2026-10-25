@@ -29,7 +29,12 @@ export default function AudioScreen({
         </p>
       </article>
 
-      {loading ? <p className="card">Préparation de la voix…</p> : null}
+      {loading ? (
+        <p className="card">
+          Préparation de la voix… Le premier chargement peut durer une à
+          deux minutes.
+        </p>
+      ) : null}
       {error ? (
         <p className="error" role="alert">
           {error}

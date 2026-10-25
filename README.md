@@ -1,12 +1,10 @@
 # JuriLex
 
-Application web (PWA) pour aider à **comprendre un document avant de le signer**, en français simple, avec une traduction en éwé.
+Application web (PWA) pour aider à **comprendre un document avant de le signer**, en français simple, avec une traduction et une voix en éwé.
 
 JuriLex n’est pas un avocat et ne remplace pas un professionnel du droit.
 
 ## Où en est le projet
-
-Étapes 0 à 3 du cahier des charges sont en place :
 
 | Étape | Contenu | Statut |
 |---|---|---|
@@ -14,7 +12,7 @@ JuriLex n’est pas un avocat et ne remplace pas un professionnel du droit.
 | 1 | Interface PWA | Fait |
 | 2 | Import PDF / photo + OCR | Fait |
 | 3 | Analyse Gemma 4 + traduction éwé | Fait |
-| 4 | Synthèse vocale éwé | En cours (code présent, pas encore validé) |
+| 4 | Synthèse vocale éwé | Fait |
 | 5 | Parcours de démonstration complet | À faire |
 | 6 | Préparation démo finale | À faire |
 
@@ -25,14 +23,16 @@ JuriLex n’est pas un avocat et ne remplace pas un professionnel du droit.
 3. Relire et corriger le texte.
 4. Envoyer le texte à **Gemma 4** (`gemma-4-26b-a4b-it` via l’API Gemini) pour une explication structurée.
 5. Afficher : résumé, obligations, argent, dates, points à vérifier, traduction en éwé.
+6. Écouter la traduction avec **facebook/mms-tts-ewe** (WAV local, pause / reprise).
 
-La lecture du fichier reste dans le navigateur. L’explication envoie le **texte** à Google (Gemma 4), pas le fichier original. Ce n’est pas un traitement entièrement local.
+La lecture du fichier reste dans le navigateur. L’explication envoie le **texte** à Google (Gemma 4), pas le fichier original. La voix est générée sur la machine, sans base de données.
 
 ## Prérequis
 
 - Node.js 24 (ou proche)
-- Python 3.14 (celui de la machine de développement)
+- Python 3.14
 - Une clé API Gemini dans `backend/.env`
+- Pour la voix : `torch`, `transformers`, `scipy` (déjà dans le venv de démo)
 
 ## Installation
 
@@ -49,40 +49,29 @@ npm install
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install fastapi uvicorn httpx python-dotenv
-```
-
-Pour la voix (étape 4, optionnel pour l’instant) :
-
-```bash
-pip install torch transformers scipy
+pip install fastapi uvicorn httpx python-dotenv torch transformers scipy
 ```
 
 ## Configuration
-
-Copiez `backend/.env.example` vers `backend/.env` :
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-Renseignez :
-
 ```
 GEMINI_API_KEY=votre_clé
 GEMMA_MODEL=gemma-4-26b-a4b-it
 ```
 
-- La clé reste **uniquement** dans `backend/.env`.
-- Ne la mettez pas dans `frontend/.env` (elle serait exposée au navigateur).
+- Clé **uniquement** dans `backend/.env`, jamais dans `frontend/.env`.
 - Ne commitez jamais `.env`.
 
 ## Lancement
 
 Deux terminaux.
 
-**Backend** — le port doit être **8000** (pas `0000`) :
+**Backend** — port **8000** (pas `0000`) :
 
 ```bash
 cd backend
@@ -90,13 +79,12 @@ source .venv/bin/activate
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Vérification :
-
 ```bash
 curl http://127.0.0.1:8000/api/health
 ```
 
-Réponse attendue : `"ok": true`, `"analysis": true`, `"model": "gemma-4-26b-a4b-it"`.
+Attendu : `"ok": true`, `"analysis": true`, `"model": "gemma-4-26b-a4b-it"`.  
+`"tts": true` seulement après la première génération de voix (le modèle se charge à la première requête).
 
 **Frontend** :
 
@@ -107,44 +95,51 @@ npm run dev
 
 Ouvrir **http://localhost:5173/**.
 
-Le frontend relaie `/api` vers `http://127.0.0.1:8000`. Si le backend est arrêté, « Comprendre ce document » échoue.
+## Parcours de test (jusqu’à l’étape 4)
 
-## Parcours de test (jusqu’à l’étape 3)
+1. Ajouter un document (PDF ou photo).
+2. Vérifier / corriger le texte.
+3. **Comprendre ce document** (8 à 15 s).
+4. Lire les six sections.
+5. **Écouter en éwé** : le premier chargement de la voix peut prendre **une à deux minutes**, les suivants quelques secondes.
+6. Pause / reprise, puis **Effacer et recommencer**.
 
-1. Accueil → **Ajouter mon document** (PDF) ou **Prendre une photo**.
-2. Attendre la lecture du texte, puis **Continuer vers le texte** si besoin.
-3. Corriger le texte.
-4. Lire l’avertissement (envoi à Gemma 4 / Google), puis **Comprendre ce document**.
-5. Vérifier les six sections, puis **Écouter en éwé** pour voir la traduction.
-
-L’analyse prend souvent **8 à 15 secondes**. Si le message indique un délai trop long, relancer uniquement le backend (sans charger la voix en même temps).
+Ne lancez pas l’analyse Gemma 4 et le premier chargement TTS en même temps : la machine a peu de RAM.
 
 ## API backend
 
-- `GET /api/health` — état du serveur, présence de la clé, modèle IA.
-- `POST /api/analyze` — `{ "text": "..." }` → JSON `summary`, `you`, `other`, `money`, `dates`, `checks`, `ewe`, `model`.
-- `POST /api/tts` — prévu pour la voix éwé (`facebook/mms-tts-ewe`). Pas encore validé.
+- `GET /api/health`
+- `POST /api/analyze` — `{ "text": "..." }` → `summary`, `you`, `other`, `money`, `dates`, `checks`, `ewe`, `model`
+- `POST /api/tts` — `{ "text": "..." }` → fichier **WAV** (`audio/wav`), modèle `facebook/mms-tts-ewe`
 
-Le contenu des documents n’est pas enregistré en base. Aucun compte utilisateur.
+Les fichiers WAV temporaires sont supprimés après envoi. Aucun historique, aucun compte.
 
-## Licences à connaître
+Test voix :
 
-- **Gemma 4** : Apache 2.0. Traitement via l’API Gemini (données envoyées à Google).
-- **facebook/mms-tts-ewe** : CC-BY-NC 4.0. Usage de démo / non commercial.
+```bash
+curl -o voix.wav -X POST http://127.0.0.1:8000/api/tts \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"Lɔnu 50 000 FCFA ɣleti sia ɣleti."}'
+```
+
+## Licences
+
+- **Gemma 4** : Apache 2.0. Appel API Gemini (texte envoyé à Google).
+- **facebook/mms-tts-ewe** : **CC-BY-NC 4.0**. Démo / usage non commercial uniquement.
 - **PDF.js** et **Tesseract.js** : lecture locale dans le navigateur.
 
 ## Limites connues
 
 - Ce n’est pas un avis juridique.
-- Gemma 4 peut se tromper ou mal traduire l’éwé : toujours relire.
-- L’OCR est imparfait sur les photos floues ou les PDF scannés.
-- La machine de démo a peu de RAM : ne pas lancer l’analyse et le chargement TTS en même temps.
-- La PWA installe l’interface ; l’analyse et la voix ont besoin d’internet et du backend.
-- La synthèse vocale n’est pas encore une fonctionnalité de démo stable.
+- Gemma 4 peut se tromper ou mal traduire l’éwé.
+- L’OCR est imparfait sur photos floues ou PDF scannés.
+- Peu de RAM : séparer analyse et premier chargement de la voix.
+- La PWA n’offre pas l’analyse ni la voix hors ligne.
+- MMS TTS n’est pas adapté à un usage commercial sans autre licence.
 
 ## Structure
 
 ```text
-frontend/     interface React + Vite (JSX, pas de TypeScript)
-backend/      FastAPI (analyse Gemma 4, TTS en préparation)
+frontend/     React + Vite (JSX)
+backend/      FastAPI : analyse Gemma 4 + TTS éwé
 ```

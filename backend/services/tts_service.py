@@ -60,6 +60,11 @@ def _synthesize_chunk(text):
     return audio
 
 
+def generate_speech(text):
+    load_tts()
+    return synthesize_wav(text)
+
+
 def synthesize_wav(text):
     import numpy as np
     import scipy.io.wavfile as wavfile
