@@ -8,7 +8,7 @@ import ImportScreen from './components/ImportScreen.jsx';
 import OfflineBanner from './components/OfflineBanner.jsx';
 import ResultsScreen from './components/ResultsScreen.jsx';
 import ReviewScreen from './components/ReviewScreen.jsx';
-import { analyzeDocument } from './services/api.js';
+import { analyzeDocument, requestSpeech } from './services/api.js';
 import { revokeAudioUrl } from './services/audioService.js';
 import {
   ACCEPT_ATTRIBUTE,
@@ -177,9 +177,40 @@ export default function App() {
     }
   };
 
+  const prepareAudio = async () => {
+    if (audioUrl || audioLoading) {
+      return audioUrl;
+    }
+    if (!eweText.trim()) {
+      setAudioError('Il n’y a pas encore de texte en éwé à lire.');
+      return null;
+    }
+    setAudioLoading(true);
+    setAudioError('');
+    try {
+      const url = await requestSpeech(eweText);
+      setAudioUrl(url);
+      return url;
+    } catch (error) {
+      setAudioError(
+        error.message || 'La voix n’a pas pu être préparée. Réessayez.',
+      );
+      return null;
+    } finally {
+      setAudioLoading(false);
+    }
+  };
+
+  const openAudio = () => {
+    setScreen('audio');
+    window.setTimeout(() => {
+      prepareAudio();
+    }, 0);
+  };
+
   const togglePlay = async () => {
-    if (!audioRef.current || !audioUrl) {
-      setAudioError('La voix n’est pas encore disponible.');
+    const url = audioUrl || (await prepareAudio());
+    if (!audioRef.current || !url) {
       return;
     }
     if (playing) {
@@ -187,15 +218,15 @@ export default function App() {
       setPlaying(false);
       return;
     }
-    setAudioLoading(true);
     try {
+      if (audioRef.current.src !== url) {
+        audioRef.current.src = url;
+      }
       await audioRef.current.play();
       setPlaying(true);
       setAudioError('');
     } catch {
       setAudioError('Impossible de lancer l’écoute pour le moment.');
-    } finally {
-      setAudioLoading(false);
     }
   };
 
@@ -284,7 +315,7 @@ export default function App() {
       {screen === 'results' ? (
         <ResultsScreen
           analysis={analysis}
-          onListen={() => setScreen('audio')}
+          onListen={openAudio}
           onBack={() => setScreen('review')}
         />
       ) : null}

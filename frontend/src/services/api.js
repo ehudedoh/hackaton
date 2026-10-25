@@ -29,6 +29,15 @@ export async function analyzeDocument(text) {
   return response.json();
 }
 
-export async function requestSpeech() {
-  throw new Error('La voix n’est pas encore branchée.');
+export async function requestSpeech(text) {
+  const response = await fetch(`${API_BASE}/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 }

@@ -39,16 +39,11 @@ export default function AudioScreen({
       <div className="footer-actions">
         <BigButton
           onClick={onTogglePlay}
-          disabled={!audioUrl || loading}
+          disabled={loading || !eweText}
           icon={playing ? <Pause size={24} /> : <Play size={24} />}
         >
           {playing ? 'Mettre en pause' : 'Écouter'}
         </BigButton>
-        {!audioUrl && !loading ? (
-          <p className="muted">
-            Le bouton d’écoute s’activera quand la voix sera connectée.
-          </p>
-        ) : null}
         <BigButton variant="ghost" onClick={onBack}>
           Revenir à l’explication
         </BigButton>

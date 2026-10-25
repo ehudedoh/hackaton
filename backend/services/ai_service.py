@@ -14,18 +14,10 @@ GEMINI_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 )
 
-PROMPT = """Tâche : expliquer un document en français simple, puis traduire l'explication en éwé.
-
-Règles :
-- N'invente pas de clause, montant, date ou obligation absente du texte.
-- Si ce n'est pas clair, dis qu'il faut vérifier.
-- Ne dis pas qu'une clause est illégale.
-
-Le premier caractère de ta réponse doit être {{ et le dernier }}.
-Aucun texte avant ou après le JSON.
-
-Clés obligatoires :
+PROMPT = """Explique ce document en français simple. JSON uniquement, clés:
 summary, you, other, money, dates, checks, ewe
+N'invente rien. Si une info manque, dis de vérifier.
+ewe = traduction éwé de l'explication.
 
 Document :
 {document}
@@ -88,7 +80,7 @@ def analyze_text(document):
     }
 
     print("jurilex: appel Gemma 4", MODEL_NAME, flush=True)
-    with httpx.Client(timeout=45.0, trust_env=False) as client:
+    with httpx.Client(timeout=90.0, trust_env=False) as client:
         response = client.post(
             GEMINI_URL,
             params={"key": api_key},

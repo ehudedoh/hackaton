@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 
 from routes.analysis import router as analysis_router
+from routes.tts import router as tts_router
 from services.ai_service import MODEL_NAME, has_api_key
+from services.tts_service import is_ready
+
 
 app = FastAPI(title="JuriLex")
 app.add_middleware(
@@ -17,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(analysis_router, prefix="/api")
+app.include_router(tts_router, prefix="/api")
 
 
 @app.get("/api/health")
@@ -25,5 +29,6 @@ def health():
         "ok": True,
         "analysis": has_api_key(),
         "model": MODEL_NAME,
-        "tts": False,
+        "tts": is_ready(),
+        "tts_model": "facebook/mms-tts-ewe",
     }
